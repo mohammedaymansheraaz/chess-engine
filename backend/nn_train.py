@@ -356,7 +356,7 @@ def main():
     parser.add_argument(
         "--checkpoint", type=int, default=100, help="games between evals"
     )
-    parser.add_argument("--match-games", type=int, default=20, help="games per eval")
+    parser.add_argument("--match-games", type=int, default=50, help="games per eval")
     parser.add_argument(
         "--snapshot-every",
         type=int,
@@ -367,7 +367,13 @@ def main():
         "--mix-ramp",
         type=int,
         default=1000,
-        help="games over which the target ramps from classic-eval imitation to pure game outcomes",
+        help="games over which the target ramps from classic-eval imitation toward game outcomes",
+    )
+    parser.add_argument(
+        "--mix-max",
+        type=float,
+        default=0.65,
+        help="ceiling on the imitation->outcome mix (never fully drops the teacher anchor; prevents catastrophic forgetting after ramp completes)",
     )
     parser.add_argument(
         "--gen-policy",
@@ -378,8 +384,8 @@ def main():
     parser.add_argument(
         "--gen-depth", type=int, default=2, help="classic-teacher search depth"
     )
-    parser.add_argument("--channels", type=int, default=32)
-    parser.add_argument("--res-blocks", type=int, default=2)
+    parser.add_argument("--channels", type=int, default=128)
+    parser.add_argument("--res-blocks", type=int, default=6)
     parser.add_argument("--out", default="nn.pt")
     parser.add_argument("--load", default=None, help="resume from a checkpoint")
     parser.add_argument("--seed", type=int, default=None)
@@ -425,7 +431,7 @@ def main():
         if len(buffer) > args.buffer:
             del buffer[: len(buffer) - args.buffer]
 
-        mix = min(1.0, game_idx / max(1, args.mix_ramp))
+        mix = min(args.mix_max, game_idx / max(1, args.mix_ramp))
         if len(buffer) >= args.min_samples:
             for _ in range(args.train_per_game):
                 batch = random.sample(buffer, min(args.batch, len(buffer)))

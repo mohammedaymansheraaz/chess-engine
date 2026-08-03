@@ -1,0 +1,75 @@
+{
+  "agents": {
+    "eval-architect": {
+      "agentId": "eval-architect",
+      "agentType": "architect",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 1,
+      "config": {
+        "model": "sonnet"
+      },
+      "createdAt": "2026-08-03T01:52:02.655Z",
+      "domain": "chess-engine",
+      "model": "sonnet",
+      "modelRoutedBy": "explicit"
+    },
+    "eval-researcher": {
+      "agentId": "eval-researcher",
+      "agentType": "researcher",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 1,
+      "config": {
+        "model": "haiku"
+      },
+      "createdAt": "2026-08-03T01:52:03.200Z",
+      "domain": "chess-engine",
+      "model": "haiku",
+      "modelRoutedBy": "explicit"
+    },
+    "eval-tester": {
+      "agentId": "eval-tester",
+      "agentType": "tester",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 1,
+      "config": {
+        "model": "haiku"
+      },
+      "createdAt": "2026-08-03T01:52:03.748Z",
+      "domain": "chess-engine",
+      "model": "haiku",
+      "modelRoutedBy": "explicit"
+    },
+    "eval-reviewer": {
+      "agentId": "eval-reviewer",
+      "agentType": "reviewer",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 1,
+      "config": {
+        "model": "sonnet"
+      },
+      "createdAt": "2026-08-03T01:52:04.303Z",
+      "domain": "chess-engine",
+      "model": "sonnet",
+      "modelRoutedBy": "explicit"
+    },
+    "eval-ollama-test": {
+      "agentId": "eval-ollama-test",
+      "agentType": "tester",
+      "status": "terminated",
+      "health": 1,
+      "taskCount": 2,
+      "config": {
+        "model": "haiku"
+      },
+      "createdAt": "2026-08-03T01:56:14.989Z",
+      "domain": "chess-engine",
+      "model": "haiku",
+      "modelRoutedBy": "explicit"
+    }
+  },
+  "version": "3.0.0"
+}

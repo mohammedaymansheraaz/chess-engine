@@ -1,0 +1,22 @@
+device: cuda  params: 1,838,977
+2500 self-play games, generator=classic, self-play depth 1, eval-match depth 2, buffer 1000000 positions, mix ramp 1500
+
+[game   100] winrate  50.0% (W25 L25 D0) loss 0.0053  346s
+[game   200] winrate  11.0% (W0 L39 D11) loss 0.0077  888s
+Traceback (most recent call last):
+  File "/home/ayman/chess-engine/backend/nn_train.py", line 507, in <module>
+    main()
+    ~~~~^^
+  File "/home/ayman/chess-engine/backend/nn_train.py", line 445, in main
+    stats = play_match(net, args.match_games, args.depth)
+  File "/home/ayman/chess-engine/backend/nn_train.py", line 303, in play_match
+    move = batched_minimax_move(
+        board, depth, net if use_net else classic_evaluator
+    )
+  File "/home/ayman/chess-engine/backend/nn_train.py", line 123, in batched_minimax_move
+    x = torch.stack(leaves).to(next(evaluator.parameters()).device)
+RuntimeError: CUDA error: unspecified launch failure
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+

@@ -1,0 +1,114 @@
+{
+  "totalDecisions": 0,
+  "modelDistribution": {
+    "haiku": 0,
+    "sonnet": 0,
+    "opus": 0,
+    "inherit": 0
+  },
+  "avgComplexity": 0.5,
+  "avgConfidence": 0.8,
+  "circuitBreakerTrips": 6,
+  "lastUpdated": "2026-08-03T01:56:36.725Z",
+  "learningHistory": [
+    {
+      "task": "Analyze the architecture of the chess engine at /home/ayman/chess-engine. Read backend/engine.py, ba",
+      "model": "sonnet",
+      "complexity": 0.5816917293233083,
+      "outcome": "failure",
+      "timestamp": "2026-08-03T01:52:09.726Z"
+    },
+    {
+      "task": "Evaluate code quality of the chess engine at /home/ayman/chess-engine. Read backend/engine.py and ba",
+      "model": "haiku",
+      "complexity": 0.3457624060150376,
+      "outcome": "failure",
+      "timestamp": "2026-08-03T01:52:10.651Z"
+    },
+    {
+      "task": "Evaluate test coverage of the chess engine at /home/ayman/chess-engine. Read test_api.sh, backend/en",
+      "model": "haiku",
+      "complexity": 0.3824159663865546,
+      "outcome": "failure",
+      "timestamp": "2026-08-03T01:52:11.968Z"
+    },
+    {
+      "task": "Evaluate security and performance of the chess engine at /home/ayman/chess-engine. Read backend/main",
+      "model": "sonnet",
+      "complexity": 0.5785714285714285,
+      "outcome": "failure",
+      "timestamp": "2026-08-03T01:52:13.152Z"
+    },
+    {
+      "task": "Reply with exactly one sentence: confirming you are running and which provider served you.",
+      "model": "haiku",
+      "complexity": 0.20525714285714286,
+      "outcome": "failure",
+      "timestamp": "2026-08-03T01:56:18.468Z"
+    },
+    {
+      "task": "Reply with exactly one sentence confirming you are running and which provider served you.",
+      "model": "haiku",
+      "complexity": 0.2040326530612245,
+      "outcome": "failure",
+      "timestamp": "2026-08-03T01:56:36.725Z"
+    }
+  ],
+  "version": 2,
+  "priors": {
+    "low": {
+      "haiku": {
+        "alpha": 1,
+        "beta": 5
+      },
+      "sonnet": {
+        "alpha": 1,
+        "beta": 1
+      },
+      "opus": {
+        "alpha": 1,
+        "beta": 1
+      },
+      "inherit": {
+        "alpha": 1,
+        "beta": 1
+      }
+    },
+    "med": {
+      "haiku": {
+        "alpha": 1,
+        "beta": 1
+      },
+      "sonnet": {
+        "alpha": 1,
+        "beta": 3
+      },
+      "opus": {
+        "alpha": 1,
+        "beta": 1
+      },
+      "inherit": {
+        "alpha": 1,
+        "beta": 1
+      }
+    },
+    "high": {
+      "haiku": {
+        "alpha": 1,
+        "beta": 1
+      },
+      "sonnet": {
+        "alpha": 1,
+        "beta": 1
+      },
+      "opus": {
+        "alpha": 1,
+        "beta": 1
+      },
+      "inherit": {
+        "alpha": 1,
+        "beta": 1
+      }
+    }
+  }
+}
