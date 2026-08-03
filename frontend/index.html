@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alpha-Beta — a small chess engine</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♞</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #1C1712;
+    --bg-raised: #241D16;
+    --ivory: #EDE0D0;
+    --walnut: #6E4E38;
+    --walnut-dark: #5A3F2C;
+    --brass: #C79A55;
+    --brass-dim: #8A6B3C;
+    --text: #F4EEE3;
+    --text-dim: #B8AA96;
+    --good: #C9A15A;
+    --bad: #8B4A47;
+    --line: #3A3128;
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px 80px;
+  }
+
+  header{
+    text-align: center;
+    margin-bottom: 32px;
+  }
+
+  h1{
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 600;
+    font-size: 44px;
+    letter-spacing: 0.5px;
+    color: var(--ivory);
+  }
+
+  h1 em{
+    font-style: italic;
+    color: var(--brass);
+  }
+
+  .subtitle{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-top: 6px;
+  }
+
+  .layout{
+    display: flex;
+    gap: 44px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .board-wrap{
+    position: relative;
+  }
+
+  .board{
+    display: grid;
+    grid-template-columns: repeat(8, 64px);
+    grid-template-rows: repeat(8, 64px);
+    border: 3px solid var(--walnut-dark);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(199,154,85,0.15);
+  }
+
+  .square{
+    display:flex; align-items:center; justify-content:center;
+    font-size: 44px;
+    position: relative;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s ease;
+  }
+
+  .square.light{ background: var(--ivory); }
+  .square.dark{ background: var(--walnut); }
+
+  .square.selected{ background: var(--brass) !important; }
+  .square.legal::after{
+    content: '';
+    position: absolute;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: rgba(60,40,20,0.35);
+  }
+  .square.legal.capture::after{
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: transparent;
+    border: 4px solid rgba(139,74,71,0.55);
+  }
+  .square.last-move{ background: rgba(199,154,85,0.45) !important; }
+  .square.in-check{ background: rgba(139,74,71,0.65) !important; }
+
+  .piece{ pointer-events: none; }
+  .piece.white{ color: #FBF6EC; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
+  .piece.black{ color: #241812; text-shadow: 0 1px 1px rgba(255,255,255,0.15); }
+
+  .coords{
+    display:flex; justify-content:space-between;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 8px;
+    padding: 0 2px;
+  }
+
+  .panel{
+    width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .card{
+    background: var(--bg-raised);
+    border: 1px solid var(--line);
+    padding: 18px 20px;
+  }
+
+  .card h2{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--brass-dim);
+    margin-bottom: 12px;
+  }
+
+  .eval-row{
+    display:flex;
+    gap: 14px;
+    align-items: stretch;
+  }
+
+  .eval-bar-track{
+    width: 22px;
+    height: 140px;
+    background: var(--bad);
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--line);
+  }
+  .eval-bar-fill{
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: var(--good);
+    transition: height 0.4s cubic-bezier(.4,0,.2,1);
+  }
+
+  .eval-readout{
+    flex: 1;
+    display:flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .eval-score{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 30px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .eval-score.thinking{ color: var(--text-dim); }
+
+  .stat-grid{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 0;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+  }
+  .stat-grid .label{ color: var(--text-dim); }
+  .stat-grid .value{ color: var(--ivory); text-align: right; }
+
+  .status-line{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: var(--brass);
+    min-height: 18px;
+  }
+
+  .eval-mode{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 10px;
+    border-top: 1px solid var(--line);
+    padding-top: 8px;
+  }
+
+  .controls{ display:flex; flex-direction:column; gap: 12px; }
+
+  select, button{
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    padding: 10px 12px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    color: var(--text);
+    outline: none;
+  }
+
+  select:focus, button:focus{
+    border-color: var(--brass);
+    box-shadow: 0 0 0 2px rgba(199,154,85,0.2);
+  }
+
+  select{ cursor: pointer; }
+
+  button{
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: all 0.15s ease;
+  }
+  button.primary{
+    background: var(--brass-dim);
+    border-color: var(--brass-dim);
+    color: #1C1712;
+    font-weight: 600;
+  }
+  button.primary:hover{ background: var(--brass); }
+  button:not(.primary):hover{ border-color: var(--brass-dim); color: var(--brass); }
+  button:disabled{ opacity: 0.4; cursor: not-allowed; }
+
+  .row{ display:flex; gap: 10px; }
+  .row > *{ flex: 1; }
+
+  .moves-log{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    max-height: 110px;
+    overflow-y: auto;
+    line-height: 1.7;
+  }
+
+  .promotion-overlay{
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  .promotion-overlay.active{ display: flex; }
+
+  .promotion-picker{
+    background: var(--bg-raised);
+    border: 2px solid var(--brass);
+    padding: 20px;
+    display: flex;
+    gap: 12px;
+  }
+
+  .promotion-picker button{
+    width: 64px;
+    height: 64px;
+    font-size: 44px;
+    padding: 0;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .promotion-picker button:hover{
+    background: var(--brass-dim);
+    border-color: var(--brass);
+  }
+
+  .draw-banner{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--brass);
+    background: rgba(199,154,85,0.1);
+    border: 1px solid var(--brass-dim);
+    padding: 8px 12px;
+    text-align: center;
+    display: none;
+  }
+  .draw-banner.active{ display: block; }
+
+  footer{
+    margin-top: 48px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--line);
+    text-align: center;
+  }
+
+  @media (max-width: 768px){
+    .board{
+      grid-template-columns: repeat(8, 48px);
+      grid-template-rows: repeat(8, 48px);
+    }
+    .square{ font-size: 32px; }
+    .panel{ width: 100%; max-width: 400px; }
+    h1{ font-size: 32px; }
+  }
+
+  @media (max-width: 480px){
+    .board{
+      grid-template-columns: repeat(8, 36px);
+      grid-template-rows: repeat(8, 36px);
+    }
+    .square{ font-size: 24px; }
+    .square.legal.capture::after{
+      width: 30px; height: 30px;
+      border-width: 3px;
+    }
+    .layout{ gap: 28px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Alpha<em>beta</em></h1>
+  <div class="subtitle">a minimax engine, pruned</div>
+</header>
+
+<div class="draw-banner" id="drawBanner"></div>
+
+<div class="layout">
+
+  <div class="board-wrap">
+    <div class="board" id="board"></div>
+    <div class="coords" id="coords"></div>
+  </div>
+
+  <div class="panel">
+
+    <div class="card">
+      <h2>Engine Telemetry</h2>
+      <div class="eval-row">
+        <div class="eval-bar-track">
+          <div class="eval-bar-fill" id="evalFill" style="height: 50%;"></div>
+        </div>
+        <div class="eval-readout">
+          <div class="eval-score" id="evalScore">+0.00</div>
+          <div class="stat-grid">
+            <div class="label">depth</div><div class="value" id="statDepth">—</div>
+            <div class="label">nodes</div><div class="value" id="statNodes">—</div>
+            <div class="label">time</div><div class="value" id="statTime">—</div>
+          </div>
+        </div>
+      </div>
+      <div class="eval-mode" id="evalMode"></div>
+      <div class="status-line" id="statusLine">set up a new game to begin</div>
+    </div>
+
+    <div class="card controls">
+      <h2>New Game</h2>
+      <select id="difficulty">
+        <option value="1">Casual (depth 2)</option>
+        <option value="2">Club (depth 3)</option>
+        <option value="3" selected>Serious (depth 4)</option>
+        <option value="4">Ruthless (depth 5)</option>
+      </select>
+      <select id="playerColor">
+        <option value="white" selected>Play as White</option>
+        <option value="black">Play as Black</option>
+      </select>
+      <button class="primary" id="newGameBtn">Start Game</button>
+      <div class="row">
+        <button id="undoBtn">Undo</button>
+        <button id="flipBtn">Flip Board</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Move Log</h2>
+      <div class="moves-log" id="movesLog">—</div>
+    </div>
+
+  </div>
+</div>
+
+<div class="promotion-overlay" id="promotionOverlay">
+  <div class="promotion-picker">
+    <button data-piece="q" aria-label="Promote to Queen">♛</button>
+    <button data-piece="r" aria-label="Promote to Rook">♜</button>
+    <button data-piece="b" aria-label="Promote to Bishop">♝</button>
+    <button data-piece="n" aria-label="Promote to Knight">♞</button>
+  </div>
+</div>
+
+<footer>alpha-beta pruning · iterative deepening · quiescence search on captures</footer>
+
+<script>
+const API = window.location.origin;
+
+const PIECE_GLYPHS = {
+  'P':'♙','N':'♘','B':'♗','R':'♖','Q':'♕','K':'♔',
+  'p':'♟','n':'♞','b':'♝','r':'♜','q':'♛','k':'♚',
+};
+
+let flipped = false;
+let selectedSquare = null;
+let legalTargets = [];
+let playerColor = 'white';
+let currentState = null;
+let boardLocked = false;
+let currentGameId = null;
+let pendingPromotion = null;
+
+const boardEl = document.getElementById('board');
+const coordsEl = document.getElementById('coords');
+const promotionOverlay = document.getElementById('promotionOverlay');
+const drawBanner = document.getElementById('drawBanner');
+
+function parseFen(fen){
+  const boardPart = fen.split(' ')[0];
+  const rows = boardPart.split('/');
+  const grid = [];
+  for(const row of rows){
+    const line = [];
+    for(const ch of row){
+      if(/\d/.test(ch)){
+        for(let i=0;i<parseInt(ch);i++) line.push(null);
+      } else {
+        line.push(ch);
+      }
+    }
+    grid.push(line);
+  }
+  return grid;
+}
+
+function renderBoard(state){
+  currentState = state;
+  const grid = parseFen(state.fen);
+  boardEl.innerHTML = '';
+
+  const lastMove = state.move_stack.length ? state.move_stack[state.move_stack.length - 1] : null;
+  const lastFrom = lastMove ? lastMove.slice(0,2) : null;
+  const lastTo = lastMove ? lastMove.slice(2,4) : null;
+
+  if(state.is_draw && state.draw_reason){
+    drawBanner.textContent = `Draw: ${state.draw_reason}`;
+    drawBanner.classList.add('active');
+  } else {
+    drawBanner.classList.remove('active');
+  }
+
+  for(let displayRow = 0; displayRow < 8; displayRow++){
+    for(let displayCol = 0; displayCol < 8; displayCol++){
+      const fileIdx = flipped ? 7 - displayCol : displayCol;
+      const gridRow = flipped ? 7 - displayRow : displayRow;
+
+      const piece = grid[gridRow][fileIdx];
+      const file = fileIdx;
+      const rank = 7 - gridRow;
+      const squareName = String.fromCharCode(97 + file) + (rank + 1);
+
+      const sq = document.createElement('div');
+      const isLight = (file + rank) % 2 === 1;
+      sq.className = 'square ' + (isLight ? 'light' : 'dark');
+      sq.dataset.square = squareName;
+
+      if(squareName === lastFrom || squareName === lastTo){
+        sq.classList.add('last-move');
+      }
+
+      if(piece){
+        const span = document.createElement('span');
+        const isWhite = piece === piece.toUpperCase();
+        span.className = 'piece ' + (isWhite ? 'white' : 'black');
+        span.textContent = PIECE_GLYPHS[piece];
+        sq.appendChild(span);
+
+        if(piece.toLowerCase() === 'k' && state.is_check){
+          const kingColor = isWhite ? 'white' : 'black';
+          if(kingColor === state.turn) sq.classList.add('in-check');
+        }
+      }
+
+      if(selectedSquare === squareName) sq.classList.add('selected');
+      if(legalTargets.some(m => m.slice(2,4) === squareName && m.slice(0,2) === selectedSquare)){
+        sq.classList.add('legal');
+        if(piece) sq.classList.add('capture');
+      }
+
+      sq.addEventListener('click', () => onSquareClick(squareName));
+      boardEl.appendChild(sq);
+    }
+  }
+
+  coordsEl.innerHTML = '';
+  const files = flipped ? 'hgfedcba' : 'abcdefgh';
+  for(const f of files){
+    const s = document.createElement('span');
+    s.textContent = f;
+    coordsEl.appendChild(s);
+  }
+
+  updateStatus(state);
+  updateMovesLog(state);
+}
+
+function updateMovesLog(state){
+  const log = document.getElementById('movesLog');
+  if(!state.move_stack.length){ log.textContent = '—'; return; }
+  let out = '';
+  for(let i=0;i<state.move_stack.length;i+=2){
+    const num = i/2 + 1;
+    const w = state.move_stack[i] || '';
+    const b = state.move_stack[i+1] || '';
+    out += `${num}. ${w}  ${b}<br>`;
+  }
+  log.innerHTML = out;
+  log.scrollTop = log.scrollHeight;
+}
+
+function updateStatus(state){
+  const statusLine = document.getElementById('statusLine');
+  if(state.is_checkmate){
+    const winner = state.turn === 'white' ? 'Black' : 'White';
+    statusLine.textContent = `checkmate — ${winner} wins`;
+  } else if(state.is_stalemate){
+    statusLine.textContent = 'stalemate — draw';
+  } else if(state.is_draw){
+    statusLine.textContent = `draw — ${state.draw_reason || ''}`;
+  } else if(state.is_check){
+    statusLine.textContent = `${state.turn} to move — in check`;
+  } else if(state.is_game_over){
+    statusLine.textContent = `game over — ${state.result || ''}`;
+  } else {
+    statusLine.textContent = `${state.turn} to move`;
+  }
+}
+
+function updateEval(score, info, thinking){
+  const evalScore = document.getElementById('evalScore');
+  const evalFill = document.getElementById('evalFill');
+
+  if(thinking){
+    evalScore.classList.add('thinking');
+    evalScore.textContent = 'thinking…';
+  } else {
+    evalScore.classList.remove('thinking');
+    const pawns = score / 100;
+    evalScore.textContent = (pawns >= 0 ? '+' : '') + pawns.toFixed(2);
+    const clamped = Math.max(-800, Math.min(800, score));
+    const pct = 50 + (clamped / 800) * 50;
+    evalFill.style.height = pct + '%';
+  }
+
+  if(info){
+    document.getElementById('statDepth').textContent = info.depth ?? '—';
+    document.getElementById('statNodes').textContent = info.nodes != null ? info.nodes.toLocaleString() : '—';
+    document.getElementById('statTime').textContent = info.time != null ? info.time + 's' : '—';
+  }
+}
+
+async function fetchJSON(url, opts){
+  const res = await fetch(url, opts);
+  if(!res.ok){
+    const err = await res.json().catch(()=>({detail: res.statusText}));
+    throw new Error(err.detail || 'Request failed');
+  }
+  return res.json();
+}
+
+async function onSquareClick(squareName){
+  if(boardLocked || !currentState || currentState.is_game_over) return;
+  if(currentState.turn !== playerColor) return;
+
+  const piece = squareHasOwnPiece(squareName);
+
+  if(selectedSquare === squareName){
+    selectedSquare = null;
+    legalTargets = [];
+    renderBoard(currentState);
+    return;
+  }
+
+  if(selectedSquare){
+    const candidate = currentState.legal_moves.filter(m =>
+      m.slice(0,2) === selectedSquare && m.slice(2,4) === squareName
+    );
+    if(candidate.length){
+      if(candidate.length > 1 && candidate[0].length === 5){
+        pendingPromotion = { from: selectedSquare, to: squareName, moves: candidate };
+        promotionOverlay.classList.add('active');
+        selectedSquare = null;
+        legalTargets = [];
+        renderBoard(currentState);
+        return;
+      }
+      let uci = candidate[0];
+      selectedSquare = null;
+      legalTargets = [];
+      await makePlayerMove(uci);
+      return;
+    }
+  }
+
+  if(piece){
+    selectedSquare = squareName;
+    legalTargets = currentState.legal_moves.filter(m => m.slice(0,2) === squareName);
+  } else {
+    selectedSquare = null;
+    legalTargets = [];
+  }
+  renderBoard(currentState);
+}
+
+promotionOverlay.querySelectorAll('button').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    if(!pendingPromotion) return;
+    const piece = btn.dataset.piece;
+    const uci = pendingPromotion.moves.find(m => m.endsWith(piece)) || pendingPromotion.moves[0];
+    pendingPromotion = null;
+    promotionOverlay.classList.remove('active');
+    await makePlayerMove(uci);
+  });
+});
+
+function squareHasOwnPiece(squareName){
+  const grid = parseFen(currentState.fen);
+  const file = squareName.charCodeAt(0) - 97;
+  const rank = parseInt(squareName[1]) - 1;
+  const gridRow = 7 - rank;
+  const piece = grid[gridRow][file];
+  if(!piece) return false;
+  const isWhite = piece === piece.toUpperCase();
+  return (isWhite && playerColor === 'white') || (!isWhite && playerColor === 'black');
+}
+
+async function makePlayerMove(uci){
+  boardLocked = true;
+  try{
+    const url = currentGameId ? `${API}/api/move?game_id=${currentGameId}` : `${API}/api/move`;
+    const state = await fetchJSON(url, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({move: uci})
+    });
+    currentGameId = state.game_id;
+    renderBoard(state);
+    if(!state.is_game_over){
+      await requestEngineMove();
+    }
+  } catch(e){
+    console.error(e);
+    alert(e.message);
+  } finally {
+    boardLocked = false;
+  }
+}
+
+async function requestEngineMove(){
+  updateEval(0, null, true);
+  try{
+    const url = currentGameId ? `${API}/api/engine-move?game_id=${currentGameId}` : `${API}/api/engine-move`;
+    const state = await fetchJSON(url, {method:'POST'});
+    currentGameId = state.game_id;
+    renderBoard(state);
+    updateEval(state.engine_info?.score ?? 0, state.engine_info, false);
+  } catch(e){
+    console.error(e);
+  }
+}
+
+document.getElementById('newGameBtn').addEventListener('click', async () => {
+  const difficulty = parseInt(document.getElementById('difficulty').value);
+  playerColor = document.getElementById('playerColor').value;
+  flipped = (playerColor === 'black');
+  selectedSquare = null;
+  legalTargets = [];
+  currentGameId = null;
+
+  const state = await fetchJSON(`${API}/api/new-game`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({difficulty, player_color: playerColor})
+  });
+  currentGameId = state.game_id;
+  renderBoard(state);
+  if(state.engine_info){
+    updateEval(state.engine_info.score, state.engine_info, false);
+  } else {
+    updateEval(0, {depth:'—',nodes:'—',time:'—'}, false);
+  }
+});
+
+document.getElementById('undoBtn').addEventListener('click', async () => {
+  selectedSquare = null; legalTargets = [];
+  const url = currentGameId ? `${API}/api/undo?game_id=${currentGameId}` : `${API}/api/undo`;
+  const state = await fetchJSON(url, {method:'POST'});
+  currentGameId = state.game_id;
+  renderBoard(state);
+});
+
+document.getElementById('flipBtn').addEventListener('click', () => {
+  flipped = !flipped;
+  if(currentState) renderBoard(currentState);
+});
+
+(async () => {
+  try{
+    const state = await fetchJSON(`${API}/api/state`);
+    currentGameId = state.game_id;
+    renderBoard(state);
+  } catch(e){
+    document.getElementById('statusLine').textContent = 'backend not running — start it first';
+  }
+  try{
+    const info = await fetchJSON(`${API}/api/engine`);
+    document.getElementById('evalMode').textContent = `evaluator · ${info.evaluator}`;
+  } catch(e){ /* backend not running */ }
+})();
+</script>
+
+</body>
+</html>

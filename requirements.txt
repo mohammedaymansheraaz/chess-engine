@@ -1,0 +1,7 @@
+fastapi>=0.100.0
+uvicorn>=0.23.0
+python-chess>=1.9.0
+pydantic>=2.0.0
+# PyTorch with CUDA 12.4 support (for the neural-network bot). Install with:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu124
+torch>=2.2.0
