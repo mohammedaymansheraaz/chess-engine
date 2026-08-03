@@ -9,6 +9,7 @@ import threading
 from typing import Optional
 
 from engine import find_best_move, evaluate, set_network_eval
+import style
 
 app = FastAPI(title="Alpha-Beta Chess Engine")
 
@@ -256,6 +257,34 @@ def get_eval(game_id: Optional[str] = None):
 def engine_info():
     """Which evaluator is active and how difficulty maps to search depth."""
     return {"evaluator": EVALUATOR_NAME, "difficulty_depths": DIFFICULTY_DEPTH}
+
+
+@app.get("/api/style")
+def get_style():
+    """Current play-style weights (centipawns)."""
+    return style.current_style_weights()
+
+
+@app.post("/api/style")
+def set_style(
+    preset: Optional[str] = None,
+    aggression: float = 0.0,
+    positional: float = 0.0,
+    risk: float = 0.0,
+):
+    """Set play-style preset ('balanced', 'aggressive', 'positional', 'defensive')
+    or custom weights. Weights are additive centipawn adjustments at the leaf
+    evaluation layer (applies to both classic and neural evaluators)."""
+    if preset:
+        if preset not in style.DEFAULT_WEIGHTS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"unknown preset {preset!r}; choose from {list(style.DEFAULT_WEIGHTS)}",
+            )
+        return style.set_style_preset(preset)
+    return style.set_style_weights(
+        aggression=aggression, positional=positional, risk_avoid=risk
+    )
 
 
 frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
