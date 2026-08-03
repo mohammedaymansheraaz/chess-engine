@@ -1,16 +1,44 @@
+# --- Python ---
 venv/
 __pycache__/
 *.pyc
+*.pyo
+*.egg-info/
 
-# Ruflo local secrets and runtime data
+# --- Secrets ---
 .env
 .env.local
 .env.*.local
-.claude-flow/data/
-.claude-flow/logs/
-.claude-flow/sessions/
 
-# Codex local configuration
+# --- Training artefacts (model weights, logs, snapshots) ---
+# Released as GitHub release artifacts, not version-controlled.
+backend/nn.pt
+backend/nn_stage1.pt
+backend/*.pt
+backend/snapshots/
+backend/*_progress.csv
+backend/stage1.log
+
+# --- Stockfish binary (download via README; never ship the .bin) ---
+stockfish/stockfish16
+stockfish/stockfish-*-avx2
+stockfish/*.tar
+stockfish/*.zip
+
+# --- Ruflo / Claude Flow / Codex framework scaffolding ---
+# These are tooling of this machine and have nothing to do with the
+# chess engine. They were accidentally pushed in the initial commit
+# and are now removed from the repo.
+.agents/
+.claude/
+.claude-flow/
 .codex/
-# Claude Flow runtime data
-# Environment variables
+.swarm/
+.mcp.json
+ruvector.db
+
+# --- OS / editor cruft ---
+.DS_Store
+*.swp
+.vscode/
+.idea/

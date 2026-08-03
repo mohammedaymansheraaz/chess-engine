@@ -18,6 +18,11 @@ import time
 import chess
 import chess.polyglot
 
+# Play-style shaping (aggression / positional / risk-avoid). See style.py.
+# Kept a no-op when its weights are all zero so existing behaviour is
+# unchanged until set_style_weights() / set_style_preset() is called.
+import style
+
 # --- Evaluation ------------------------------------------------------------
 
 PIECE_VALUES = {
@@ -495,6 +500,13 @@ def evaluate(board: chess.Board) -> int:
     term is intentionally omitted: board.legal_moves.count() generates the
     full move list on every call and was a measurable bottleneck in the
     search hot loop.
+
+    Play-style adjustment: when style weights are set (see backend/style.py),
+    an additive centipawn adjustment for aggression / positional / risk-
+    avoidance is added on top of BOTH brains -- classic and neural. This
+    is the only place where the style hooks into the search, so a single
+    knob at the evaluation layer shifts the engine's feel without touching
+    the search or retraining the net.
     """
     if board.is_checkmate():
         return -MATE_SCORE if board.turn == chess.WHITE else MATE_SCORE
@@ -507,7 +519,7 @@ def evaluate(board: chess.Board) -> int:
         value = NETWORK_EVAL(board)
         if board.turn == chess.BLACK:
             value = -value
-        return int(round(value * 1000.0))
+        return int(round(value * 1000.0)) + style.style_adjustment(board)
 
     score = 0
     white_bishops = 0
@@ -531,6 +543,8 @@ def evaluate(board: chess.Board) -> int:
         score += BISHOP_PAIR_BONUS
     if black_bishops >= 2:
         score -= BISHOP_PAIR_BONUS
+
+    score += style.style_adjustment(board)
 
     return score
 
