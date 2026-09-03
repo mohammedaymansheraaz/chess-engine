@@ -2,11 +2,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, field_validator
+from typing import Optional
+
 import chess
 import os
-import uuid
 import threading
-from typing import Optional
+import uuid
 
 from engine import find_best_move, evaluate, set_network_eval
 import style
@@ -17,38 +18,36 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"]
 )
 
 VALID_DIFFICULTIES = {1, 2, 3, 4}
-DIFFICULTY_DEPTH = {1: 2, 2: 3, 3: 4, 4: 5}
+DEPTH_BY_DIFFICULTY = {1: 2, 2: 3, 3: 4, 4: 5}
 VALID_COLORS = {"white", "black"}
 
-# Optional trained neural network. Set CHESS_MODEL=/path/to/nn.pt to have
-# the engine evaluate positions with the network instead of the classic
-# material + piece-square evaluation. Loaded lazily so the server still
-# starts without torch installed.
 MODEL_PATH = os.environ.get("CHESS_MODEL", "")
-EVALUATOR_NAME = "classic (material + piece-square tables)"
+EVALUATOR_NAME = "classic"
 
 
-def load_model() -> None:
-    """Load the trained value network and route evaluations through it."""
+def load_model():
     global EVALUATOR_NAME
+
     if not MODEL_PATH:
         return
+
     try:
         import torch
         from nn import ValueNet
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        net = ValueNet().to(device)
-        net.load_state_dict(torch.load(MODEL_PATH, map_location=device))
-        net.eval()
-        set_network_eval(net.value)
+        model = ValueNet().to(device)
+        model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
+        model.eval()
+
+        set_network_eval(model.value)
         EVALUATOR_NAME = f"neural net ({MODEL_PATH}, {device})"
-    except Exception as exc:  # noqa: BLE001 - log and fall back to classic eval
-        print(f"[startup] failed to load model {MODEL_PATH}: {exc}", flush=True)
+    except Exception as exc:
+        print(f"Could not load model {MODEL_PATH}: {exc}", flush=True)
 
 
 load_model()
@@ -59,12 +58,10 @@ class MoveRequest(BaseModel):
 
     @field_validator("move")
     @classmethod
-    def validate_move_format(cls, v: str) -> str:
-        if not v or len(v) < 4 or len(v) > 5:
-            raise ValueError(
-                "Move must be 4-5 characters in UCI format (e.g. e2e4, e7e8q)"
-            )
-        return v
+    def check_move(cls, value: str) -> str:
+        if len(value) not in (4, 5):
+            raise ValueError("Move must be in UCI format, for example e2e4")
+        return value
 
 
 class NewGameRequest(BaseModel):
@@ -73,21 +70,21 @@ class NewGameRequest(BaseModel):
 
     @field_validator("difficulty")
     @classmethod
-    def validate_difficulty(cls, v: int) -> int:
-        if v not in VALID_DIFFICULTIES:
+    def check_difficulty(cls, value: int) -> int:
+        if value not in VALID_DIFFICULTIES:
             raise ValueError(f"Difficulty must be one of {sorted(VALID_DIFFICULTIES)}")
-        return v
+        return value
 
     @field_validator("player_color")
     @classmethod
-    def validate_color(cls, v: str) -> str:
-        if v not in VALID_COLORS:
+    def check_color(cls, value: str) -> str:
+        if value not in VALID_COLORS:
             raise ValueError(f"player_color must be one of {sorted(VALID_COLORS)}")
-        return v
+        return value
 
 
 class Game:
-    def __init__(self, difficulty: int = 3, player_color: str = "white"):
+    def __init__(self, difficulty=3, player_color="white"):
         self.id = str(uuid.uuid4())[:8]
         self.board = chess.Board()
         self.difficulty = difficulty
@@ -95,79 +92,80 @@ class Game:
         self.lock = threading.Lock()
 
 
-games: dict[str, Game] = {}
+games = {}
 games_lock = threading.Lock()
 
 default_game = Game()
 games[default_game.id] = default_game
 
 
-def board_state(game: Game) -> dict:
-    b = game.board
-    is_draw = False
+def board_state(game: Game):
+    board = game.board
     draw_reason = None
 
-    if b.is_stalemate():
-        is_draw = True
+    if board.is_stalemate():
         draw_reason = "stalemate"
-    elif b.halfmove_clock >= 100:
-        is_draw = True
+    elif board.halfmove_clock >= 100:
         draw_reason = "50-move rule"
-    elif b.is_repetition(3):
-        is_draw = True
+    elif board.is_repetition(3):
         draw_reason = "threefold repetition"
-    elif b.is_insufficient_material():
-        is_draw = True
+    elif board.is_insufficient_material():
         draw_reason = "insufficient material"
 
     return {
         "game_id": game.id,
-        "fen": b.fen(),
-        "turn": "white" if b.turn == chess.WHITE else "black",
-        "is_check": b.is_check(),
-        "is_checkmate": b.is_checkmate(),
-        "is_stalemate": b.is_stalemate(),
-        "is_draw": is_draw,
+        "fen": board.fen(),
+        "turn": "white" if board.turn == chess.WHITE else "black",
+        "is_check": board.is_check(),
+        "is_checkmate": board.is_checkmate(),
+        "is_stalemate": board.is_stalemate(),
+        "is_draw": draw_reason is not None,
         "draw_reason": draw_reason,
-        "is_game_over": b.is_game_over(),
-        "legal_moves": [m.uci() for m in b.legal_moves],
-        "move_stack": [m.uci() for m in b.move_stack],
-        "result": b.result() if b.is_game_over() else None,
+        "is_game_over": board.is_game_over(),
+        "legal_moves": [move.uci() for move in board.legal_moves],
+        "move_stack": [move.uci() for move in board.move_stack],
+        "result": board.result() if board.is_game_over() else None,
         "player_color": game.player_color,
         "difficulty": game.difficulty,
     }
 
 
-def get_game(game_id: Optional[str] = None) -> Game:
-    if game_id:
-        with games_lock:
-            game = games.get(game_id)
-        if not game:
-            raise HTTPException(404, f"Game {game_id} not found")
-        return game
+def get_game(game_id: Optional[str] = None):
     with games_lock:
-        return list(games.values())[-1]
+        if game_id:
+            game = games.get(game_id)
+        else:
+            game = list(games.values())[-1]
+
+    if game is None:
+        raise HTTPException(404, f"Game {game_id} not found")
+
+    return game
 
 
 @app.post("/api/new-game")
 def new_game(req: NewGameRequest):
-    game = Game(difficulty=req.difficulty, player_color=req.player_color)
+    game = Game(req.difficulty, req.player_color)
+
     with games_lock:
         games[game.id] = game
         if len(games) > 50:
-            oldest = next(iter(games))
-            del games[oldest]
+            oldest_id = next(iter(games))
+            del games[oldest_id]
 
     with game.lock:
         state = board_state(game)
 
         if req.player_color == "black":
-            depth = DIFFICULTY_DEPTH[req.difficulty]
+            depth = DEPTH_BY_DIFFICULTY[req.difficulty]
             best_move, info = find_best_move(
-                game.board, max_depth=depth, time_limit=5.0
+                game.board,
+                max_depth=depth,
+                time_limit=5.0,
             )
             if best_move:
                 game.board.push(best_move)
+
             state = board_state(game)
             state["engine_move"] = best_move.uci() if best_move else None
             state["engine_info"] = info
@@ -177,8 +175,7 @@ def new_game(req: NewGameRequest):
 
 @app.get("/api/state")
 def get_state(game_id: Optional[str] = None):
-    game = get_game(game_id)
-    return board_state(game)
+    return board_state(get_game(game_id))
 
 
 @app.post("/api/move")
@@ -186,13 +183,14 @@ def player_move(req: MoveRequest, game_id: Optional[str] = None):
     game = get_game(game_id)
 
     with game.lock:
-        if game.board.is_game_over():
+        board = game.board
+
+        if board.is_game_over():
             raise HTTPException(409, "Game is already over")
 
         player_is_white = game.player_color == "white"
-        if (player_is_white and game.board.turn != chess.WHITE) or (
-            not player_is_white and game.board.turn != chess.BLACK
-        ):
+        player_turn = chess.WHITE if player_is_white else chess.BLACK
+        if board.turn != player_turn:
             raise HTTPException(409, "Not your turn")
 
         try:
@@ -200,10 +198,10 @@ def player_move(req: MoveRequest, game_id: Optional[str] = None):
         except ValueError:
             raise HTTPException(400, f"Malformed move string: {req.move}")
 
-        if move not in game.board.legal_moves:
+        if move not in board.legal_moves:
             raise HTTPException(422, f"Illegal move: {req.move}")
 
-        game.board.push(move)
+        board.push(move)
         return board_state(game)
 
 
@@ -212,22 +210,23 @@ def engine_move(game_id: Optional[str] = None):
     game = get_game(game_id)
 
     with game.lock:
-        if game.board.is_game_over():
+        board = game.board
+
+        if board.is_game_over():
             return board_state(game)
 
         engine_is_white = game.player_color == "black"
-        if (engine_is_white and game.board.turn != chess.WHITE) or (
-            not engine_is_white and game.board.turn != chess.BLACK
-        ):
+        engine_turn = chess.WHITE if engine_is_white else chess.BLACK
+        if board.turn != engine_turn:
             raise HTTPException(409, "Not engine's turn")
 
-        depth = DIFFICULTY_DEPTH[game.difficulty]
-        best_move, info = find_best_move(game.board, max_depth=depth, time_limit=5.0)
-
+        depth = DEPTH_BY_DIFFICULTY[game.difficulty]
+        best_move, info = find_best_move(board, max_depth=depth, time_limit=5.0)
         if best_move is None:
             raise HTTPException(400, "No legal moves for engine")
 
-        game.board.push(best_move)
+        board.push(best_move)
+
         state = board_state(game)
         state["engine_move"] = best_move.uci()
         state["engine_info"] = info
@@ -239,29 +238,31 @@ def undo_move(game_id: Optional[str] = None):
     game = get_game(game_id)
 
     with game.lock:
-        if len(game.board.move_stack) >= 2:
+        moves = game.board.move_stack
+        if len(moves) >= 2:
             game.board.pop()
             game.board.pop()
-        elif len(game.board.move_stack) == 1:
+        elif moves:
             game.board.pop()
+
         return board_state(game)
 
 
 @app.get("/api/eval")
 def get_eval(game_id: Optional[str] = None):
-    game = get_game(game_id)
-    return {"score": evaluate(game.board)}
+    return {"score": evaluate(get_game(game_id).board)}
 
 
 @app.get("/api/engine")
 def engine_info():
-    """Which evaluator is active and how difficulty maps to search depth."""
-    return {"evaluator": EVALUATOR_NAME, "difficulty_depths": DIFFICULTY_DEPTH}
+    return {
+        "evaluator": EVALUATOR_NAME,
+        "difficulty_depths": DEPTH_BY_DIFFICULTY,
+    }
 
 
 @app.get("/api/style")
 def get_style():
-    """Current play-style weights (centipawns)."""
     return style.current_style_weights()
 
 
@@ -272,9 +273,6 @@ def set_style(
     positional: float = 0.0,
     risk: float = 0.0,
 ):
-    """Set play-style preset ('balanced', 'aggressive', 'positional', 'defensive')
-    or custom weights. Weights are additive centipawn adjustments at the leaf
-    evaluation layer (applies to both classic and neural evaluators)."""
     if preset:
         if preset not in style.DEFAULT_WEIGHTS:
             raise HTTPException(
@@ -282,8 +280,11 @@ def set_style(
                 detail=f"unknown preset {preset!r}; choose from {list(style.DEFAULT_WEIGHTS)}",
             )
         return style.set_style_preset(preset)
+
     return style.set_style_weights(
-        aggression=aggression, positional=positional, risk_avoid=risk
+        aggression=aggression,
+        positional=positional,
+        risk_avoid=risk,
     )
 
 

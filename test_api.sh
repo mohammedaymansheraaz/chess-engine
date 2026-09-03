@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# End-to-end test suite for the Alphabeta chess engine.
-# Requires the server to be running: `cd backend && uvicorn main:app --port 8000`
-#
-# Usage: bash test_api.sh
 
 set -e
 
@@ -38,8 +34,6 @@ check "starts with white to move" "white" "$TURN"
 
 echo ""
 echo "== Turn enforcement =="
-# Player is white. Make a white move, then white's turn is over; trying
-# another white move should be rejected as "not your turn" (409).
 curl -s -X POST "$API/api/move" -H 'Content-Type: application/json' -d '{"move":"e2e4"}' > /dev/null
 CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$API/api/move" -H 'Content-Type: application/json' -d '{"move":"d2d4"}')
 check "rejects move when not player's turn" "409" "$CODE"
